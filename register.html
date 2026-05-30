@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daftar Akun - Ryu Store</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root { --bg: #0b0f19; --card: #151d30; --primary: #0070f3; --accent: #00df89; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
+        body { background: var(--bg); color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .box { background: var(--card); padding: 40px; border-radius: 16px; width: 100%; max-width: 400px; border: 1px solid #222f4c; text-align: center; }
+        h2 { margin-bottom: 20px; font-weight: 800; background: linear-gradient(45deg, #0070f3, #00df89); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        input { width: 100%; padding: 12px; margin-bottom: 15px; background: #0b0f19; border: 1px solid #222f4c; border-radius: 8px; color: #fff; font-size: 1rem; }
+        input:focus { border-color: var(--primary); outline: none; }
+        .btn { width: 100%; background: var(--primary); color: #fff; border: none; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; font-size: 1rem; }
+        .btn:hover { background: var(--primary-hover); }
+        .btn-accent { background: var(--accent); color: #000; }
+        .btn-accent:hover { background: #00b36e; }
+        .msg { margin-top: 15px; font-size: 0.9rem; font-weight: bold; }
+        .switch { margin-top: 20px; font-size: 0.85rem; color: #8f9cae; }
+        .switch a { color: var(--accent); text-decoration: none; font-weight: 600; }
+        
+        /* Sematkan efek sembunyi untuk kolom OTP */
+        #otp-wrapper { display: none; margin-top: 15px; padding-top: 15px; border-top: 1px dashed #222f4c; }
+    </style>
+</head>
+<body>
+
+    <div class="box">
+        <h2>Register Akun</h2>
+        <p style="color: #8f9cae; font-size: 0.9rem; margin-bottom: 20px;">Lengkapi data diri untuk mendapatkan OTP</p>
+        
+        <!-- Form Utama -->
+        <div id="form-utama">
+            <input type="text" id="username" placeholder="Buat Username">
+            <input type="email" id="email" placeholder="Masukkan Email Aktif">
+            <input type="password" id="password" placeholder="Buat Password">
+            <button class="btn" id="btn-minta-otp" onclick="mintaOtp()">Kirim Kode OTP</button>
+        </div>
+
+        <!-- Kolom Input OTP (Akan muncul setelah klik tombol di atas) -->
+        <div id="otp-wrapper">
+            <p style="color: var(--accent); font-size: 0.85rem; margin-bottom: 10px;">Silakan cek kotak masuk/spam email kamu!</p>
+            <input type="number" id="otp-code" placeholder="Masukkan 6 Digit Kode OTP" oninput="javascript: if (this.value.length > 6) this.value = this.value.slice(0, 6);">
+            <button class="btn btn-accent" onclick="verifikasiDanDaftar()">Verifikasi & Daftar</button>
+        </div>
+        
+        <p id="msg" class="msg"></p>
+        
+        <div class="switch">
+            Sudah punya akun? <a href="/login">Login disini</a>
+        </div>
+    </div>
+
+    <script>
+        // Tahap 1: Minta OTP ke Backend
+        async function mintaOtp() {
+            const username = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const msg = document.getElementById('msg');
+            const btn = document.getElementById('btn-minta-otp');
+
+            if (!username || !email || !password) {
+                msg.style.color = "#ff4a4a";
+                msg.innerText = "Semua kolom wajib diisi!";
+                return;
+            }
+
+            msg.style.color = "orange";
+            msg.innerText = "Sedang mengirim OTP ke email...";
+            btn.disabled = true;
+
+            try {
+                // Diarahkan ke endpoint request OTP backend kamu nanti
+                const response = await fetch('/api/auth/request-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email })
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    msg.style.color = "#00df89";
+                    msg.innerText = "Kode OTP berhasil dikirim!";
+                    
+                    // Kunci input utama agar data tidak diganti saat OTP diisi
+                    document.getElementById('username').disabled = true;
+                    document.getElementById('email').disabled = true;
+                    document.getElementById('password').disabled = true;
+                    
+                    // Munculkan kolom input OTP
+                    document.getElementById('otp-wrapper').style.display = 'block';
+                    btn.style.display = 'none';
+                } else {
+                    msg.style.color = "#ff4a4a";
+                    msg.innerText = data.error || "Gagal mengirim OTP.";
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                msg.style.color = "#ff4a4a";
+                msg.innerText = "Gagal terhubung ke server!";
+                btn.disabled = false;
+            }
+        }
+
+        // Tahap 2: Kirim OTP beserta data pendaftaran untuk di-save ke DB
+        async function verifikasiDanDaftar() {
+            const username = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const otp = document.getElementById('otp-code').value;
+            const msg = document.getElementById('msg');
+
+            if (!otp || otp.length < 6) {
+                msg.style.color = "#ff4a4a";
+                msg.innerText = "Masukkan 6 digit kode OTP dengan benar!";
+                return;
+            }
+
+            msg.style.color = "orange";
+            msg.innerText = "Memverifikasi OTP...";
+
+            try {
+                const response = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email, password, otp })
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    msg.style.color = "#00df89";
+                    msg.innerText = "Registrasi Berhasil! Mengalihkan ke Login...";
+                    setTimeout(() => { window.location.href = '/login'; }, 1500);
+                } else {
+                    msg.style.color = "#ff4a4a";
+                    msg.innerText = data.error || "Kode OTP salah atau kedaluwarsa!";
+                }
+            } catch (err) {
+                msg.style.color = "#ff4a4a";
+                msg.innerText = "Gagal memproses verifikasi!";
+            }
+        }
+    </script>
+</body>
+</html>
